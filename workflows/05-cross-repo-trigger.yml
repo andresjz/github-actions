@@ -1,0 +1,21 @@
+name: Cross-Repo Trigger
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  trigger-other-repo:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger workflow in another repository
+        run: |
+          curl -X POST \
+          -H "Authorization: token ${{ secrets.PAT_TOKEN }}" \
+          -H "Accept: application/vnd.github.v3+json" \
+          https://api.github.com/repos/username/other-repo/dispatches \
+          -d '{"event_type":"trigger-workflow"}'
+
+# secrets.PAT_TOKEN es un token personal de acceso que debes almacenar en los secretos del repositorio.
+# Este código envía un evento custom (trigger-workflow) al otro repo, que puede estar configurado para disparar una acción en base a ese evento.

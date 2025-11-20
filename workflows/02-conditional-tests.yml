@@ -1,0 +1,17 @@
+name: Conditional Workflow
+
+on:
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  conditional-job:
+    runs-on: ubuntu-latest
+    if: github.event.pull_request.review_count >= 1 && github.ref == 'refs/heads/main'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Run Tests
+        run: npm run test
