@@ -67,6 +67,8 @@ jobs:
       uses: github/codeql-action/analyze@v4
       with:
         category: "/language:${{matrix.language}}"
+        output: sarif-results
+        upload: false  # ← No subir todavía, primero lo inspeccionamos
         
     - name: Debug SARIF Results
       if: matrix.language == 'java-kotlin'
