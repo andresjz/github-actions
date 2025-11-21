@@ -20,11 +20,52 @@ jobs:
         run: npm run test
         continue-on-error: true
 
-      - name: Send Slack notification if tests fail
+      - name: Send Teams notification if tests fail
         if: always()
+        env:
+          WEBHOOK_URL: ${{ secrets.TEAMS_WEBHOOK_URL }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          REPO_NAME: ${{ github.repository }}
         run: |
-          if [ "${{ steps.run-tests.outcome }}" == "failure" ]; then
-            curl -X POST -H 'Content-type: application/json' \
-            --data '{"text":"🚨 Los tests fallaron en el PR #${{ github.event.pull_request.number }}! Revisa el log aquí: ${{ github.event.pull_request.html_url }}"}' \
-            ${{ secrets.SLACK_WEBHOOK_URL }}
+          if [ "${{ steps.run-tests.outcome }}" = "failure" ] && [ -n "$WEBHOOK_URL" ]; then
+            cat <<EOF > payload.json
+{
+  "type": "message",
+  "attachments": [
+    {
+      "contentType": "application/vnd.microsoft.card.adaptive",
+      "contentUrl": null,
+      "content": {
+        "\$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
+        "type": "AdaptiveCard",
+        "version": "1.2",
+        "body": [
+          {
+            "type": "TextBlock",
+            "size": "Large",
+            "weight": "Bolder",
+            "text": "🚨 Fallaron los tests en $REPO_NAME"
+          },
+          {
+            "type": "TextBlock",
+            "wrap": true,
+            "text": "PR #$PR_NUMBER → $PR_URL"
+          }
+        ],
+        "actions": [
+          {
+            "type": "Action.OpenUrl",
+            "title": "Ver Pull Request",
+            "url": "$PR_URL"
+          }
+        ]
+      }
+    }
+  ]
+}
+EOF
+            curl -s -X POST "$WEBHOOK_URL" \
+              -H "Content-Type: application/json" \
+              -d @payload.json
           fi
