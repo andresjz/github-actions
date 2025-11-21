@@ -1,51 +1,39 @@
 /**
  * @name SQL Injection via String Concatenation
- * @description Detects SQL queries built using string concatenation with variables,
- *              which can lead to SQL injection vulnerabilities.
- * @kind path-problem
+ * @description Detects SQL queries built using string concatenation.
+ * @kind problem
  * @problem.severity error
- * @security-severity 8.8
- * @precision high
  * @id java/sql-injection-concatenation
  * @tags security
- *       external/cwe/cwe-089
  */
 
 import java
-import semmle.code.java.dataflow.TaintTracking
-import DataFlow::PathGraph
 
-/**
- * A taint-tracking configuration for SQL injection via concatenation
- */
-class SqlInjectionConfig extends TaintTracking::Configuration {
-  SqlInjectionConfig() { this = "SqlInjectionConfig" }
-
-  override predicate isSource(DataFlow::Node source) {
-    // Parámetros de métodos son fuentes potenciales
-    source.asParameter().getType() instanceof TypeString
-  }
-
-  override predicate isSink(DataFlow::Node sink) {
-    exists(MethodAccess call |
-      // executeQuery de Statement
-      call.getMethod().hasName("executeQuery") and
-      call.getMethod().getDeclaringType().hasQualifiedName("java.sql", "Statement") and
-      sink.asExpr() = call.getArgument(0)
+from MethodAccess call, AddExpr concat
+where
+  // executeQuery de Statement
+  call.getMethod().hasName("executeQuery") and
+  call.getMethod().getDeclaringType().hasQualifiedName("java.sql", "Statement") and
+  
+  // El argumento (directamente o a través de una variable) es una concatenación
+  (
+    concat = call.getArgument(0)
+    or
+    exists(Variable v |
+      v.getAnAccess() = call.getArgument(0) and
+      concat = v.getAnAssignedValue()
     )
-  }
-
-  override predicate isAdditionalTaintStep(DataFlow::Node node1, DataFlow::Node node2) {
-    // La concatenación propaga el taint
-    exists(AddExpr add |
-      add.getAnOperand() = node1.asExpr() and
-      add = node2.asExpr()
+  ) and
+  
+  // La concatenación incluye un literal SQL
+  exists(StringLiteral lit |
+    lit = concat.getAnOperand() and
+    (
+      lit.getValue().matches("%SELECT%") or
+      lit.getValue().matches("%INSERT%") or
+      lit.getValue().matches("%UPDATE%") or
+      lit.getValue().matches("%DELETE%")
     )
-  }
-}
-
-from SqlInjectionConfig config, DataFlow::PathNode source, DataFlow::PathNode sink
-where config.hasFlowPath(source, sink)
-select sink.getNode(), source, sink,
-  "SQL query is built using $@ which may be user-controlled, leading to SQL injection.",
-  source.getNode(), "this parameter"
+  )
+  
+select call, "Potential SQL injection: query uses string concatenation. Use PreparedStatement instead."

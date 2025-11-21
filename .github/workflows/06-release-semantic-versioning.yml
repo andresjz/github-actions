@@ -1,9 +1,10 @@
 name: Release Workflow
 
 on:
-  push:
-    branches:
-      - main
+  workflow_dispatch:
+
+permissions:
+  contents: write
 
 jobs:
   release:
@@ -11,40 +12,47 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Install dependencies
-        run: npm install
+        run: npm ci
 
       - name: Determine version
-        id: determine_version
+        id: get_version
         run: |
           VERSION=$(node -p "require('./package.json').version")
+          echo "Detected version: $VERSION"
           echo "VERSION=$VERSION" >> $GITHUB_ENV
 
-      - name: Authenticate with GitHub
-        run: |
-          git remote set-url origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}
-
-      - name: Create Git Tag
+      - name: Check if tag exists
+        id: check_tag
         run: |
           if git rev-parse "v${{ env.VERSION }}" >/dev/null 2>&1; then
-            echo "Tag v${{ env.VERSION }} already exists"
+            echo "Tag v${{ env.VERSION }} already exists."
+            echo "exists=true" >> $GITHUB_OUTPUT
           else
-            git tag v${{ env.VERSION }}
-            git push origin v${{ env.VERSION }}
+            echo "Tag v${{ env.VERSION }} does not exist. Creating release..."
+            echo "exists=false" >> $GITHUB_OUTPUT
           fi
 
-      - name: Push changes and tags
+      - name: Create Git Tag
+        if: steps.check_tag.outputs.exists == 'false'
         run: |
-          git push origin main --follow-tags
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -a v${{ env.VERSION }} -m "Release v${{ env.VERSION }}"
+          git push origin v${{ env.VERSION }}
 
       - name: Create GitHub Release
-        uses: actions/create-release@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        if: steps.check_tag.outputs.exists == 'false'
+        uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ env.VERSION }}
-          release_name: Release ${{ env.VERSION }}
+          name: Release ${{ env.VERSION }}
           body_path: CHANGELOG.md
           draft: false
           prerelease: false
+          make_latest: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
