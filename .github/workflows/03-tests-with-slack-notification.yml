@@ -45,7 +45,9 @@ jobs:
                       \"body\": [
                         {
                           \"type\": \"TextBlock\",
-                          \"text\": \"Submitted response: ${RESPONSE}\"
+                          \"text\": \"GitHub: ${RESPONSE}\",
+                          \"wrap\": true,
+                          \"size\": \"default\"
                         }
                       ]
                     }
