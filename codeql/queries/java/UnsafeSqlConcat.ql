@@ -9,34 +9,23 @@
 
 import java
 
-predicate isQueryVariable(Expr e, AddExpr concat) {
-  exists(VarAccess va, LocalVariableDeclExpr decl |
-    va = e and
-    decl.getVariable() = va.getVariable() and
-    concat = decl.getInit()
-  )
-}
-
-from MethodCall call, AddExpr concat
+from MethodCall call
 where
   call.getMethod().hasName("executeQuery") and
   call.getMethod().getDeclaringType().hasQualifiedName("java.sql", "Statement") and
-  (
-    // Caso 1: concatenación directa como argumento
-    concat = call.getArgument(0)
-    or
-    // Caso 2: variable que contiene concatenación
-    isQueryVariable(call.getArgument(0), concat)
-  ) and
-  // Verificar que contiene palabras SQL
-  exists(StringLiteral lit |
-    lit = concat.getAnOperand() and
-    (
-      lit.getValue().matches("%SELECT%") or
-      lit.getValue().matches("%INSERT%") or
-      lit.getValue().matches("%UPDATE%") or
-      lit.getValue().matches("%DELETE%")
+  exists(AddExpr concat |
+    // Buscar concatenaciones en el mismo método
+    concat.getEnclosingCallable() = call.getEnclosingCallable() and
+    // Que contengan SELECT, INSERT, etc
+    exists(StringLiteral lit |
+      lit = concat.getAnOperand() and
+      (
+        lit.getValue().matches("%SELECT%") or
+        lit.getValue().matches("%INSERT%") or
+        lit.getValue().matches("%UPDATE%") or
+        lit.getValue().matches("%DELETE%")
+      )
     )
   )
   
-select call, "Potential SQL injection: query uses string concatenation. Use PreparedStatement instead."
+select call, "Potential SQL injection: this method contains string concatenation with SQL keywords. Use PreparedStatement instead."
