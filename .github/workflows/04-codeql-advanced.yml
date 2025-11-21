@@ -25,24 +25,29 @@ jobs:
         - language: javascript-typescript
           build-mode: none
           queries-path: ./codeql/queries/javascript
-          source-root: .
         - language: java-kotlin
           build-mode: none
           queries-path: ./codeql/queries/java
-          source-root: Java  # ← AQUÍ está el cambio importante
 
     steps:
     - name: Checkout repository
       uses: actions/checkout@v4
 
-    # Cambiar al directorio correcto para Java
-    - name: Set working directory for Java
+    # Verificar archivos Java antes del análisis
+    - name: Verify Java files
       if: matrix.language == 'java-kotlin'
       run: |
-        echo "Archivos Java encontrados:"
-        find Java -name "*.java" -type f
-        echo "Contenido de UnsafeExample.java:"
+        echo "=== 📁 Archivos Java en el repositorio ==="
+        find . -name "*.java" -type f
+        echo ""
+        echo "=== 📝 Contenido de UnsafeExample.java ==="
         cat Java/src/main/java/com/example/UnsafeExample.java
+        echo ""
+        echo "=== 📝 Contenido de SafeExample.java ==="
+        cat Java/src/main/java/com/example/SafeExample.java
+        echo ""
+        echo "=== 🔍 Contenido de la query personalizada ==="
+        cat codeql/queries/java/UnsafeSqlConcat.ql
 
     - name: Initialize CodeQL
       uses: github/codeql-action/init@v4
@@ -50,48 +55,71 @@ jobs:
         languages: ${{ matrix.language }}
         build-mode: ${{ matrix.build-mode }}
         queries: +${{ matrix.queries-path }}
-        # Configurar la raíz del código fuente
-        source-root: ${{ matrix.source-root }}
-
-    - if: matrix.build-mode == 'manual'
-      shell: bash
-      run: |
-        echo 'If you are using a "manual" build mode for one or more of the' \
-          'languages you are analyzing, replace this with the commands to build' \
-          'your code, for example:'
-        echo '  make bootstrap'
-        echo '  make release'
-        exit 1
 
     - name: Perform CodeQL Analysis
       uses: github/codeql-action/analyze@v4
       with:
         category: "/language:${{matrix.language}}"
         output: sarif-results
-        upload: false  # ← No subir todavía, primero lo inspeccionamos
-        
-    - name: Debug SARIF Results
+        upload: false
+
+    # Inspeccionar resultados SARIF
+    - name: Inspect SARIF Results
       if: matrix.language == 'java-kotlin'
       run: |
-        echo "=== Resultados de la query personalizada ==="
+        echo "=== 🔍 Buscando archivos SARIF ==="
+        find . -name "*.sarif" -type f
         
-        # Usar el workspace de GitHub
-        SARIF_FILE="${GITHUB_WORKSPACE}/results/java.sarif"
-        
-        echo "Buscando SARIF en: $SARIF_FILE"
+        SARIF_FILE="sarif-results/java.sarif"
         
         if [ -f "$SARIF_FILE" ]; then
-          echo "✅ Archivo encontrado"
           echo ""
-          echo "Total de alertas:"
-          jq '.runs[].results | length' "$SARIF_FILE"
+          echo "=== ✅ Archivo SARIF encontrado ==="
+          
           echo ""
-          echo "Alertas por tipo:"
-          jq -r '.runs[].results[] | "\(.ruleId)"' "$SARIF_FILE" | sort | uniq -c
-          echo ""
-          echo "Detalles de SQL injection concatenation:"
-          jq '.runs[].results[] | select(.ruleId == "java/sql-injection-concatenation")' "$SARIF_FILE"
+          echo "📊 Total de alertas encontradas:"
+          TOTAL=$(jq '.runs[].results | length' "$SARIF_FILE")
+          echo "Total: $TOTAL"
+          
+          if [ "$TOTAL" -gt 0 ]; then
+            echo ""
+            echo "📋 Reglas que detectaron problemas:"
+            jq -r '.runs[].results[].ruleId' "$SARIF_FILE" | sort | uniq -c
+            
+            echo ""
+            echo "🎯 Detalles de java/sql-injection-concatenation:"
+            jq '.runs[].results[] | select(.ruleId == "java/sql-injection-concatenation") | {ruleId, message: .message.text, location: .locations[0].physicalLocation.artifactLocation.uri}' "$SARIF_FILE" || echo "❌ No se encontraron resultados para esta regla específica"
+            
+            echo ""
+            echo "📄 TODAS las alertas encontradas:"
+            jq -r '.runs[].results[] | "[\(.ruleId)] \(.message.text) - \(.locations[0].physicalLocation.artifactLocation.uri):\(.locations[0].physicalLocation.region.startLine)"' "$SARIF_FILE"
+          else
+            echo ""
+            echo "⚠️  No se encontraron alertas"
+            echo ""
+            echo "🔍 Verificando que la query se ejecutó:"
+            jq -r '.runs[].tool.driver.rules[] | select(.id == "java/sql-injection-concatenation") | {id, name, shortDescription}' "$SARIF_FILE" || echo "❌ La query no aparece en las reglas ejecutadas"
+          fi
+          
         else
-          echo "❌ Archivo no encontrado, buscando en todo el workspace..."
-          find "$GITHUB_WORKSPACE" -name "java.sarif" -type f
+          echo ""
+          echo "❌ No se encontró $SARIF_FILE"
+          echo "Archivos SARIF encontrados:"
+          find sarif-results -type f 2>/dev/null || echo "Directorio sarif-results no existe"
         fi
+
+    # Guardar SARIF como artefacto para descarga
+    - name: Upload SARIF as artifact
+      if: matrix.language == 'java-kotlin'
+      uses: actions/upload-artifact@v4
+      with:
+        name: codeql-sarif-java
+        path: sarif-results/*.sarif
+        if-no-files-found: warn
+
+    # Subir a GitHub Security
+    - name: Upload SARIF to GitHub Security
+      uses: github/codeql-action/upload-sarif@v4
+      with:
+        sarif_file: sarif-results
+        category: "/language:${{matrix.language}}"
