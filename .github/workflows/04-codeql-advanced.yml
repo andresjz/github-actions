@@ -95,3 +95,13 @@ jobs:
       uses: github/codeql-action/analyze@v4
       with:
         category: "/language:${{matrix.language}}"
+    - name: Debug SARIF Results
+      if: matrix.language == 'java-kotlin'
+      run: |
+        echo "=== Resultados de la query personalizada ==="
+        if [ -f "${{ runner.temp }}/results/java.sarif" ]; then
+          cat "${{ runner.temp }}/results/java.sarif" | jq '.runs[].results[] | select(.ruleId == "java/sql-injection-concatenation")'
+        else
+          echo "No se encontró el archivo SARIF"
+          ls -la "${{ runner.temp }}/results/"
+        fi
