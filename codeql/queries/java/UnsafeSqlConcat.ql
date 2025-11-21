@@ -9,19 +9,26 @@
 
 import java
 
-from MethodCall call, Variable queryVar, AddExpr concat
+predicate isQueryVariable(Expr e, AddExpr concat) {
+  exists(VarAccess va, LocalVariableDeclExpr decl |
+    va = e and
+    decl.getVariable() = va.getVariable() and
+    concat = decl.getInit()
+  )
+}
+
+from MethodCall call, AddExpr concat
 where
-  // El método es executeQuery de Statement
   call.getMethod().hasName("executeQuery") and
   call.getMethod().getDeclaringType().hasQualifiedName("java.sql", "Statement") and
-  
-  // El argumento es un acceso a una variable
-  queryVar.getAnAccess() = call.getArgument(0) and
-  
-  // Esa variable tiene asignada una concatenación
-  concat = queryVar.getAnAssignedValue() and
-  
-  // La concatenación contiene un literal SQL
+  (
+    // Caso 1: concatenación directa como argumento
+    concat = call.getArgument(0)
+    or
+    // Caso 2: variable que contiene concatenación
+    isQueryVariable(call.getArgument(0), concat)
+  ) and
+  // Verificar que contiene palabras SQL
   exists(StringLiteral lit |
     lit = concat.getAnOperand() and
     (
@@ -32,6 +39,4 @@ where
     )
   )
   
-select call, 
-  "SQL injection risk: query variable '" + queryVar.getName() + 
-  "' is built using string concatenation. Use PreparedStatement instead."
+select call, "Potential SQL injection: query uses string concatenation. Use PreparedStatement instead."
