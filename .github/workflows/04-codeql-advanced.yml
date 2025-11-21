@@ -72,16 +72,24 @@ jobs:
       if: matrix.language == 'java-kotlin'
       run: |
         echo "=== Resultados de la query personalizada ==="
-        SARIF_FILE="${{ runner.temp }}/results/java.sarif"
+        
+        # Usar el workspace de GitHub
+        SARIF_FILE="${GITHUB_WORKSPACE}/results/java.sarif"
+        
+        echo "Buscando SARIF en: $SARIF_FILE"
+        
         if [ -f "$SARIF_FILE" ]; then
-          echo "Archivo SARIF encontrado"
-          echo "Total de resultados encontrados:"
-          cat "$SARIF_FILE" | jq '.runs[].results | length'
+          echo "✅ Archivo encontrado"
           echo ""
-          echo "Resultados de SQL injection:"
-          cat "$SARIF_FILE" | jq '.runs[].results[] | select(.ruleId == "java/sql-injection-concatenation")'
+          echo "Total de alertas:"
+          jq '.runs[].results | length' "$SARIF_FILE"
+          echo ""
+          echo "Alertas por tipo:"
+          jq -r '.runs[].results[] | "\(.ruleId)"' "$SARIF_FILE" | sort | uniq -c
+          echo ""
+          echo "Detalles de SQL injection concatenation:"
+          jq '.runs[].results[] | select(.ruleId == "java/sql-injection-concatenation")' "$SARIF_FILE"
         else
-          echo "No se encontró el archivo SARIF en: $SARIF_FILE"
-          echo "Archivos disponibles:"
-          ls -la "${{ runner.temp }}/results/" || echo "Directorio no existe"
+          echo "❌ Archivo no encontrado, buscando en todo el workspace..."
+          find "$GITHUB_WORKSPACE" -name "java.sarif" -type f
         fi
