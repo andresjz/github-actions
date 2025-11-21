@@ -11,24 +11,29 @@ import java
 
 predicate isStatementExecuteQuery(MethodAccess call) {
   call.getMethod().hasName("executeQuery") and
-  exists(Type t |
-    call.getQualifier().getType() = t and
-    t.getErasure().hasQualifiedName("java.sql", "Statement")
+  exists(RefType stmtType |
+    call.getQualifier().getType() = stmtType and
+    stmtType.hasQualifiedName("java.sql", "Statement")
   )
 }
 
-predicate usesParamInConcat(AddExpr concat) {
-  exists(Parameter param, VariableAccess va |
-    va.getVariable() = param and
-    concat.getAnOperand() = va
+predicate concatUsesParameter(AddExpr concat) {
+  exists(ParameterAccess pa |
+    concat.getAnOperand() = pa
+  )
+}
+
+predicate concatHasStringLiteral(AddExpr concat) {
+  exists(StringLiteral lit |
+    concat.getAnOperand() = lit
   )
 }
 
 from MethodAccess call, AddExpr concat
 where
   isStatementExecuteQuery(call) and
-  call.getArgument(0) = concat and
-  concat.getAnOperand() instanceof StringLiteral and
-  usesParamInConcat(concat)
+  concat = call.getArgument(0) and
+  concatHasStringLiteral(concat) and
+  concatUsesParameter(concat)
 select call, "Evita concatenar parámetros directamente en consultas SQL."
 

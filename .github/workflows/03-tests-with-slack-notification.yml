@@ -1,4 +1,4 @@
-name: Test Workflow with Slack Notification
+name: Test Workflow with Teams Notification
 
 on:
   pull_request:

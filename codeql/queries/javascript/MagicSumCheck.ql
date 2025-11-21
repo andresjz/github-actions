@@ -9,17 +9,18 @@
 
 import javascript
 
-predicate isMagicSum(FunctionCall call) {
+predicate isMagicSum(CallExpr call) {
   call.getCallee().getName() = "magicSum"
 }
 
-predicate isCalledWith13(FunctionCall call) {
+predicate isCalledWith13(CallExpr call) {
   exists(int i |
-    call.getArgument(i).getValue() = "13"
+    call.getArgument(i) instanceof Literal and
+    call.getArgument(i).getStringValue() = "13"
   )
 }
 
-from FunctionCall call
+from CallExpr call
 where isMagicSum(call) and isCalledWith13(call)
 select call, "The magicSum function should not be called with 13 as a parameter."
 
