@@ -22,3 +22,4 @@ predicate isCalledWith13(FunctionCall call) {
 from FunctionCall call
 where isMagicSum(call) and isCalledWith13(call)
 select call, "The magicSum function should not be called with 13 as a parameter."
+

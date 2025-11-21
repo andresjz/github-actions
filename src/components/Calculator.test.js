@@ -58,7 +58,7 @@ test("performs subtraction operation", () => {
   fireEvent.click(getByText("="));
   expect(getByRole("textbox")).toHaveValue("5-3");
   const resultDiv = getByRole("textbox").nextSibling;
-  expect(resultDiv).toHaveTextContent("1");
+  expect(resultDiv).toHaveTextContent("2");
 });
 
 test("performs multiplication operation", () => {
