@@ -9,18 +9,9 @@
 
 import java
 
-from MethodCall call, BinaryExpr concat, StringLiteral lit
+from MethodCall call
 where
   call.getMethod().hasName("executeQuery") and
-  call.getMethod().getDeclaringType().hasQualifiedName("java.sql", "Statement") and
-  concat.getEnclosingCallable() = call.getEnclosingCallable() and
-  concat.getOp() = "+" and
-  lit = concat.getAnOperand() and
-  (
-    lit.getValue().matches("%SELECT%") or
-    lit.getValue().matches("%INSERT%") or
-    lit.getValue().matches("%UPDATE%") or
-    lit.getValue().matches("%DELETE%")
-  )
+  call.getMethod().getDeclaringType().hasQualifiedName("java.sql", "Statement")
   
-select call, "Potential SQL injection: this method contains string concatenation with SQL keywords. Use PreparedStatement instead."
+select call, "Potential SQL injection: executeQuery called on Statement. Use PreparedStatement instead."
