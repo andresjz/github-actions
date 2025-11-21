@@ -13,18 +13,14 @@ from MethodCall call
 where
   call.getMethod().hasName("executeQuery") and
   call.getMethod().getDeclaringType().hasQualifiedName("java.sql", "Statement") and
-  exists(AddExpr concat |
-    // Buscar concatenaciones en el mismo método
+  exists(AddExpr concat, StringLiteral lit |
     concat.getEnclosingCallable() = call.getEnclosingCallable() and
-    // Que contengan SELECT, INSERT, etc
-    exists(StringLiteral lit |
-      lit = concat.getAnOperand() and
-      (
-        lit.getValue().matches("%SELECT%") or
-        lit.getValue().matches("%INSERT%") or
-        lit.getValue().matches("%UPDATE%") or
-        lit.getValue().matches("%DELETE%")
-      )
+    lit = concat.getAnOperand() and
+    (
+      lit.getValue().matches("%SELECT%") or
+      lit.getValue().matches("%INSERT%") or
+      lit.getValue().matches("%UPDATE%") or
+      lit.getValue().matches("%DELETE%")
     )
   )
   
